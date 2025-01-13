@@ -39,21 +39,22 @@ pip install -r requirements.txt
 OPENAI_API_KEY=your_openai_api_key
 GROQ_API_KEY=your_groq_api_key
 
-#Usage
+##Usage
 
 1. Run the Streamlit app:
 
 streamlit run app.py
 
-Open your web browser and navigate to the provided local URL (typically http://localhost:8501)
-Interact with the bot:
+2. Open your web browser and navigate to the provided local URL (typically http://localhost:8501)
+   
+3. Interact with the bot:
 
 Ask about market conditions
 Request market predictions using "predict market"
 Get investment strategy recommendations
 Ask about latest market news
 
-#Project Structure
+##Project Structure
 
 anomalydetector/
 ├── app.py # Main Streamlit application
@@ -72,7 +73,7 @@ anomalydetector/
 ├── .gitignore # Git ignore rules
 └── README.md # Project documentation
 
-#Model Details
+##Model Details
 The anomaly detection model is trained on historical market data and uses the following features:
 
 VIX (Volatility Index)
@@ -80,7 +81,7 @@ DXY (US Dollar Index)
 2-Year Treasury Yield (4-week Moving Average)
 10-Year Treasury Yield (4-week Moving Average)
 
-#Dependencies
+##Dependencies
 
 beautifulsoup4==4.12.3
 groq==0.15.0
