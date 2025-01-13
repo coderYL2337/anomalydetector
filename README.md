@@ -7,8 +7,7 @@ A machine learning-powered chatbot that detects market anomalies and provides in
 - Real-time market data analysis using key indicators:
   - VIX (Volatility Index)
   - DXY (US Dollar Index)
-  - 2-Year Treasury Yield (with 4-week MA)
-  - 10-Year Treasury Yield (with 4-week MA)
+  - USGG3M(^IRX 13 Week US Treasury Bill)
 - Machine learning-based anomaly detection
 - Custom investment strategy recommendations
 - Interactive chat interface
@@ -90,8 +89,7 @@ The anomaly detection model is trained on historical market data and uses the fo
 ```
 VIX (Volatility Index)
 DXY (US Dollar Index)
-2-Year Treasury Yield (4-week Moving Average)
-10-Year Treasury Yield (4-week Moving Average)
+USGG3M(^IRX 13 Week US Treasury Bill)
 ```
 
 ## Dependencies
