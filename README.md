@@ -30,16 +30,16 @@ cd anomalydetector
 
   anomalydetectorvenv\Scripts\activate # On Windows
 
-3.Install required packages:
+3. Install required packages:
 
 pip install -r requirements.txt
 
-4.Set up environment variables (create a .env file):
+4. Set up environment variables (create a .env file):
 
 OPENAI_API_KEY=your_openai_api_key
 GROQ_API_KEY=your_groq_api_key
 
-##Usage
+## Usage
 
 1. Run the Streamlit app:
 
@@ -54,7 +54,7 @@ Request market predictions using "predict market"
 Get investment strategy recommendations
 Ask about latest market news
 
-##Project Structure
+## Project Structure
 
 anomalydetector/
 ├── app.py # Main Streamlit application
@@ -73,7 +73,7 @@ anomalydetector/
 ├── .gitignore # Git ignore rules
 └── README.md # Project documentation
 
-##Model Details
+## Model Details
 The anomaly detection model is trained on historical market data and uses the following features:
 
 VIX (Volatility Index)
@@ -81,7 +81,7 @@ DXY (US Dollar Index)
 2-Year Treasury Yield (4-week Moving Average)
 10-Year Treasury Yield (4-week Moving Average)
 
-##Dependencies
+## Dependencies
 
 beautifulsoup4==4.12.3
 groq==0.15.0
