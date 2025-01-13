@@ -1,3 +1,9 @@
+# Development files
+othermodels/
+sampledata/
+anomalyproject.ipynb
+.ipynb_checkpoints/
+
 # Ignore Python cache files
 __pycache__/
 *.py[cod]
@@ -10,9 +16,6 @@ anomalydetectorvenv/
 # Ignore environment variables
 .env
 
-# Ignore Jupyter Notebook checkpoints
-.ipynb_checkpoints/
-
 # Ignore Streamlit and system files
 .streamlit/
 .DS_Store
@@ -20,3 +23,8 @@ anomalydetectorvenv/
 # Ignore logs and temporary files
 *.log
 *.tmp
+
+# IDE specific files
+.vscode/
+.idea/
+*.swp
