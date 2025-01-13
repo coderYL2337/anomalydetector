@@ -26,9 +26,9 @@ cd anomalydetector
    python -m venv anomalydetectorvenv
    source anomalydetectorvenv/bin/activate # On Unix/macOS
 
-# or
+   or
 
-anomalydetectorvenv\Scripts\activate # On Windows
+  anomalydetectorvenv\Scripts\activate # On Windows
 
 3.Install required packages:
 
