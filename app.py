@@ -25,22 +25,6 @@ groq_client = Groq(api_key=groq_api_key)
 model = joblib.load('models/logistic_regression_model.pkl')
 scaler = joblib.load('models/scaler.pkl')
 
-# Function to fetch financial data
-# def fetch_data():
-#     tickers = {
-#         'VIX': '^VIX',
-#         'DXY': 'DX-Y.NYB',
-#         'GTITL2YR': '^IRX',
-#         'GTITL10YR': '^TNX'
-#     }
-#     data = {}
-#     for name, ticker in tickers.items():
-#         try:
-#             ticker_data = yf.Ticker(ticker).history(period="1d")
-#             data[name] = ticker_data['Close'].iloc[-1]
-#         except:
-#             data[name] = None
-#     return data
 
 def fetch_data():
     # Regular tickers (VIX and DXY)
@@ -120,7 +104,6 @@ def recommend_strategy(probability):
         return "Diversify portfolio to balance risk"
 
 # Use Llama (via GROQ API) for detailed explanations
-# Explain strategy using Groq API
 def explain_strategy(strategy, market_data):
     context = f"""Current market conditions:
     VIX: {market_data['VIX']:.2f}
@@ -146,17 +129,6 @@ def explain_strategy(strategy, market_data):
     )
     return completion.choices[0].message.content
 
-
-# # Generate chat response using OpenAI
-# def chat_with_openai(conversation):
-#     completion = openai_client.chat.completions.create(
-#         model="gpt-4o-mini",  # Specify the model
-#         messages=[
-#             {"role": "system", "content": "You are a financial expert ready to fetch data online if necessary to help answer users questions."},
-#             *conversation  # Pass the ongoing conversation
-#         ]
-#     )
-#     return completion.choices[0].message.content
 
 # Modify the chat_with_openai function to handle web searches specifically
 def chat_with_openai(conversation):
