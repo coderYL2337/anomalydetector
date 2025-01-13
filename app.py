@@ -41,15 +41,21 @@ def fetch_data():
     
     # Dictionary to store all data
     data = {}
+
+    # Add timestamp
+    data['timestamp'] = pd.Timestamp.now().strftime("%Y-%m-%d %H:%M:%S EST")
+    
     
     # Fetch current prices for VIX and DXY
     for name, ticker in current_tickers.items():
         try:
             ticker_data = yf.Ticker(ticker)
             history = ticker_data.history(period="1d")
-            if not history.empty:
+            if not history.empty and history['Close'].iloc[-1] is not None:
                 data[name] = history['Close'].iloc[-1]
+                print(f"Successfully fetched {name} from yfinance: {data[name]}")
             else:
+                print(f"Falling back to web scraping for {name}")
                 # Fallback to web scraping if yfinance fails
                 url = f"https://finance.yahoo.com/quote/{ticker}"
                 try:
@@ -57,10 +63,18 @@ def fetch_data():
                     response = requests.get(url, headers=headers)
                     soup = BeautifulSoup(response.text, 'html.parser')
                     price = soup.find('fin-streamer', {'data-field': 'regularMarketPrice'})
-                    data[name] = float(price.text.strip()) if price else None
-                except:
+                    if price:
+                        price_text = price.text.strip().replace(',', '')
+                        data[name] = float(price_text)
+                        print(f"Successfully scraped {name}: {data[name]}")
+                    else:
+                        print(f"Could not find price data for {name} in scraped content")
+                        data[name] = None
+                except Exception as e:
+                    print(f"Web scraping failed for {name}: {str(e)}")
                     data[name] = None
-        except:
+        except Exception as e:
+            print(f"Error fetching {name}: {str(e)}")
             data[name] = None
     
     # Fetch and calculate moving averages for treasury yields
@@ -99,17 +113,17 @@ def recommend_strategy(probability):
     if probability > 0.7:
         return "Move to safer investments (bonds, gold, cash)"
     elif probability < 0.3:
-        return "Maintain high-risk portfolio (equities)"
+        return "Consider balanced portfolio with both equities and safer assets"
     else:
-        return "Diversify portfolio to balance risk"
+        return "Maintain cautious approach with diversified portfolio"
 
 # Use Llama (via GROQ API) for detailed explanations
-def explain_strategy(strategy, market_data):
+def explain_strategy(strategy, market_data,probability):
     context = f"""Current market conditions:
     VIX: {market_data['VIX']:.2f}
     DXY: {market_data['DXY']:.2f}
     2Y Treasury 30day Moving Average: {market_data['GTITL2YR_MA']:.2f}
-    10Y Treasury 30day Moving Average: {market_data['GTITL10YR_MA']:.2f}"""
+    10Y Treasury 30day Moving Average: {market_data['GTITL10YR_MA']:.2f}"""  
     
     completion = groq_client.chat.completions.create(
         model="llama-3.3-70b-versatile",
@@ -120,13 +134,18 @@ def explain_strategy(strategy, market_data):
             },
             {
                 "role": "user",
-                "content": f"Given these market conditions:\n{context}\n\nExplain why '{strategy}' is recommended."
+                "content": f"""Given these market conditions:\n{context}\n
+While the quantitative model suggests {probability*100:.1f}% probability of market anomaly,
+please analyze the current market conditions and explain whether you agree or disagree with the recommendation to '{strategy}',
+providing detailed reasoning for your conclusion."""
             }
         ],
         temperature=0.7,
         max_tokens=1024,
         top_p=1
     )
+    response = completion.choices[0].message.content
+    print(f"[Groq Response: {response}")
     return completion.choices[0].message.content
 
 
@@ -144,6 +163,9 @@ def chat_with_openai(conversation):
                     *conversation
                 ]
             )
+            response = completion.choices[0].message.content
+            print(f"[OpenAI Response: {response}")
+            
             return completion.choices[0].message.content
         except Exception as e:
             if model == models[-1]:  # If this was the last model to try
@@ -171,27 +193,55 @@ if prompt := st.chat_input("What would you like to know about the market?"):
     st.session_state.messages.append({"role": "user", "content": prompt})
     with st.chat_message("user"):
         st.write(prompt)
+    
+    # Store market data in session state if not already present
+    if 'market_data' not in st.session_state:
+        with st.spinner('Fetching market data...'):
+            st.session_state.market_data = fetch_data()
+    
+      # Check for specific market status questions first
+    if any(phrase in prompt.lower() for phrase in ["market open", "market closed", "is market open", "is market closed"]):
+        # Get current time in ET
+        et_time = pd.Timestamp.now(tz='US/Eastern')
+        is_weekend = et_time.weekday() >= 5
+        is_market_hours = 9 <= et_time.hour < 16
+        
+        if is_weekend:
+            response = "The US stock market is currently closed (weekend)."
+        elif is_market_hours:
+            response = f"The US stock market is currently open. Current time (ET): {et_time.strftime('%I:%M %p ET')}"
+        else:
+            response = f"The US stock market is currently closed. Regular trading hours are 9:30 AM - 4:00 PM ET. Current time: {et_time.strftime('%I:%M %p ET')}"
 
     # If the query suggests needing web search
-    if any(keyword in prompt.lower() for keyword in ["news", "latest", "current events", "today"]):
+    if any(keyword in prompt.lower() for keyword in ["news", "latest", "current events", "today",'current','now','recent']):
         response = chat_with_openai(st.session_state.messages)
     # For market analysis and predictions
     elif any(keyword in prompt.lower() for keyword in ["market", "crash", "predict", "risk"]):
         with st.spinner('Fetching market data...'):
             market_data = fetch_data()
         
-        label, prob = predict_anomalies(market_data)
+        label, prob = predict_anomalies(st.session_state.market_data)
         strategy = recommend_strategy(prob)
-        explanation = explain_strategy(strategy, market_data)  # Pass market_data to explain_strategy
-        
-        response = f"""Based on current market indicators:
+        explanation = explain_strategy(strategy, st.session_state.market_data,prob)  # Pass market_data to explain_strategy
 
-VIX (Volatility Index): {market_data['VIX']:.2f}
-DXY (Dollar Index): {market_data['DXY']:.2f}
-2Y Treasury 30day Moving Average: {market_data['GTITL2YR_MA']:.2f}
-10Y Treasury 30day Moving Average: {market_data['GTITL10YR_MA']:.2f}
+        # Only include market data if it hasn't been shown before
+        if len(st.session_state.messages) <= 2:  # First real interaction
+            market_info = f"""Current market indicators (as of {st.session_state.market_data['timestamp']}):
+
+VIX (Volatility Index): {st.session_state.market_data['VIX']:.2f}
+DXY (Dollar Index): {st.session_state.market_data['DXY']:.2f}
+2Y Treasury 30day Moving Average: {st.session_state.market_data['GTITL2YR_MA']:.2f}
+10Y Treasury 30day Moving Average: {st.session_state.market_data['GTITL10YR_MA']:.2f}
+
+"""
+        else:
+            market_info = ""
+        
+        response = f"""{market_info}
 
 Market Analysis:
+Binary Anomaly Value: {label} (0 = Normal, 1 = Anomaly)
 The model indicates a {prob*100:.1f}% probability of market anomaly.
 Risk Level: {"High" if label == 1 else "Normal"}
 
@@ -206,7 +256,11 @@ Detailed Analysis:
             messages=[
                 {
                     "role": "system",
-                    "content": "You are a financial expert providing guidance on market and investment topics."
+                    "content": f"""You are a financial expert providing guidance based on current market conditions as of {st.session_state.market_data['timestamp']}:
+                    VIX: {st.session_state.market_data['VIX']:.2f}
+                    DXY: {st.session_state.market_data['DXY']:.2f}
+                    2Y Treasury MA: {st.session_state.market_data['GTITL2YR_MA']:.2f}
+                    10Y Treasury MA: {st.session_state.market_data['GTITL10YR_MA']:.2f}"""
                 },
                 *st.session_state.messages[-2:]  # Only pass the last interaction for context
             ],
@@ -218,6 +272,12 @@ Detailed Analysis:
     st.session_state.messages.append({"role": "assistant", "content": response})
     with st.chat_message("assistant"):
         st.write(response)
+
+# Add refresh button for market data
+if st.button("Refresh Market Data"):
+    with st.spinner('Refreshing market data...'):
+        st.session_state.market_data = fetch_data()
+        st.success(f"Market data updated as of {st.session_state.market_data['timestamp']}")
 
 # Add some styling
 st.markdown("""
