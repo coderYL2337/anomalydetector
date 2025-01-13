@@ -42,14 +42,11 @@ def fetch_data():
     # Regular tickers (VIX and DXY)
     current_tickers = {
         'VIX': '^VIX',      # Volatility Index
-        'DXY': 'DX-Y.NYB'   # US Dollar Index
+        'DXY': 'DX-Y.NYB',  # US Dollar Index
+        'USGG3M': '^IRX'  # 3-Month Treasury Yield
     }
     
-    # Treasury yield tickers (need moving average)
-    ma_tickers = {
-        'GTITL2YR': '^IRX',  # 2-Year Treasury Yield
-        'GTITL10YR': '^TNX'  # 10-Year Treasury Yield
-    }
+
     
     # Dictionary to store all data
     data = {}
@@ -89,21 +86,6 @@ def fetch_data():
             print(f"Error fetching {name}: {str(e)}")
             data[name] = None
     
-    # Fetch and calculate moving averages for treasury yields
-    for name, ticker in ma_tickers.items():
-        try:
-            ticker_data = yf.Ticker(ticker)
-            # Get 30 days of history for 4-week moving average
-            history = ticker_data.history(period="1mo")
-            if not history.empty:
-                # Calculate 4-week (20 trading days) moving average
-                ma = history['Close'].rolling(window=4).mean().iloc[-1]
-                data[f"{name}_MA"] = ma
-            else:
-                data[f"{name}_MA"] = None
-        except:
-            data[f"{name}_MA"] = None
-    
     return data
 
 # Predict anomalies using the model
@@ -111,8 +93,7 @@ def predict_anomalies(data):
     input_data = {
         'VIX': data['VIX'],
         'DXY': data['DXY'],
-        'GTITL2YR_MA': data['GTITL2YR_MA'],
-        'GTITL10YR_MA': data['GTITL10YR_MA']
+        'USGG3M': data['USGG3M'],
     }
     df = pd.DataFrame([input_data])
     scaled_data = scaler.transform(df)
@@ -134,14 +115,13 @@ def explain_strategy(strategy, market_data,probability):
     context = f"""Current market conditions:
     VIX: {market_data['VIX']:.2f}
     DXY: {market_data['DXY']:.2f}
-    2Y Treasury 30day Moving Average: {market_data['GTITL2YR_MA']:.2f}
-    10Y Treasury 30day Moving Average: {market_data['GTITL10YR_MA']:.2f}"""  
+    13 Week US Treasury Bill: {market_data['USGG3M']:.2f}"""  
     
     completion = groq_client.chat.completions.create(
         model="llama-3.3-70b-versatile",
         messages=[
             {
-                "role": "system",
+                "role": "assistant",
                 "content": "You are a financial expert explaining investment strategies based on market conditions."
             },
             {
@@ -171,7 +151,7 @@ def chat_with_openai(conversation):
             completion = openai_client.chat.completions.create(
                 model=model,
                 messages=[
-                    {"role": "system", "content": "You are a financial expert ready to fetch data online if necessary to help answer users questions."},
+                    {"role": "assistant", "content": "You are a financial expert ready to fetch data online if necessary to help answer users questions."},
                     *conversation
                 ]
             )
@@ -261,16 +241,16 @@ if prompt := st.chat_input("What would you like to know about the market?"):
 
     VIX (Volatility Index): {st.session_state.market_data['VIX']:.2f}
     DXY (Dollar Index): {st.session_state.market_data['DXY']:.2f}
-    2Y Treasury 30day Moving Average: {st.session_state.market_data['GTITL2YR_MA']:.2f}
-    10Y Treasury 30day Moving Average: {st.session_state.market_data['GTITL10YR_MA']:.2f}
-
+    13 Week US Treasury Bill: {st.session_state.market_data['USGG3M']:.2f}
     """
             else:
                 market_info = ""
             
             response = f"""{market_info}
-
+    data_timestamp: {st.session_state.market_data['timestamp']}
+    
     Market Analysis:
+    
     Binary Anomaly Value: {label} (0 = Normal, 1 = Anomaly)
     The model indicates a {prob*100:.1f}% probability of market anomaly.
     Risk Level: {"High" if label == 1 else "Normal"}
@@ -285,12 +265,11 @@ if prompt := st.chat_input("What would you like to know about the market?"):
                 model="llama-3.3-70b-versatile",
                 messages=[
                     {
-                        "role": "system",
+                        "role": "assistant",
                         "content": f"""You are a financial expert providing guidance based on current market conditions as of {st.session_state.market_data['timestamp']}:
                         VIX: {st.session_state.market_data['VIX']:.2f}
                         DXY: {st.session_state.market_data['DXY']:.2f}
-                        2Y Treasury MA: {st.session_state.market_data['GTITL2YR_MA']:.2f}
-                        10Y Treasury MA: {st.session_state.market_data['GTITL10YR_MA']:.2f}"""
+                        13 Week US Treasury Bill: {st.session_state.market_data['USGG3M']:.2f}"""
                     },
                     *st.session_state.messages[-2:]  # Only pass the last interaction for context
                 ],
