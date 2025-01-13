@@ -8,6 +8,7 @@ from dotenv import load_dotenv
 from groq import Groq
 import requests
 from bs4 import BeautifulSoup
+from datetime import datetime, timedelta
 
 # Load environment variables
 load_dotenv()
@@ -24,6 +25,17 @@ groq_client = Groq(api_key=groq_api_key)
 # Load model and scaler
 model = joblib.load('models/logistic_regression_model.pkl')
 scaler = joblib.load('models/scaler.pkl')
+
+# Initialize rate limiting in session state
+if "last_message_time" not in st.session_state:
+    st.session_state.last_message_time = datetime.now()
+if "message_count" not in st.session_state:
+    st.session_state.message_count = 0
+
+# Add these constants at the top
+MESSAGE_LIMIT = 5  # Maximum messages per time window
+TIME_WINDOW = 60   # Time window in seconds
+MAX_MESSAGES_PER_SESSION = 10  # Maximum total messages per sess
 
 
 def fetch_data():
@@ -189,89 +201,107 @@ for message in st.session_state.messages:
 
 # Chat input using st.chat_input instead of st.text_input
 if prompt := st.chat_input("What would you like to know about the market?"):
-    # Add user message to chat history
-    st.session_state.messages.append({"role": "user", "content": prompt})
-    with st.chat_message("user"):
-        st.write(prompt)
+    # Check rate limits
+    current_time = datetime.now()
+    time_diff = (current_time - st.session_state.last_message_time).total_seconds()
     
-    # Store market data in session state if not already present
-    if 'market_data' not in st.session_state:
-        with st.spinner('Fetching market data...'):
-            st.session_state.market_data = fetch_data()
+    # Reset counter if time window has passed
+    if time_diff > TIME_WINDOW:
+        st.session_state.message_count = 0
+        st.session_state.last_message_time = current_time
     
-      # Check for specific market status questions first
-    if any(phrase in prompt.lower() for phrase in ["market open", "market closed", "is market open", "is market closed"]):
-        # Get current time in ET
-        et_time = pd.Timestamp.now(tz='US/Eastern')
-        is_weekend = et_time.weekday() >= 5
-        is_market_hours = 9 <= et_time.hour < 16
-        
-        if is_weekend:
-            response = "The US stock market is currently closed (weekend)."
-        elif is_market_hours:
-            response = f"The US stock market is currently open. Current time (ET): {et_time.strftime('%I:%M %p ET')}"
-        else:
-            response = f"The US stock market is currently closed. Regular trading hours are 9:30 AM - 4:00 PM ET. Current time: {et_time.strftime('%I:%M %p ET')}"
-
-    # If the query suggests needing web search
-    if any(keyword in prompt.lower() for keyword in ["news", "latest", "current events", "today",'current','now','recent']):
-        response = chat_with_openai(st.session_state.messages)
-    # For market analysis and predictions
-    elif any(keyword in prompt.lower() for keyword in ["market", "crash", "predict", "risk"]):
-        with st.spinner('Fetching market data...'):
-            market_data = fetch_data()
-        
-        label, prob = predict_anomalies(st.session_state.market_data)
-        strategy = recommend_strategy(prob)
-        explanation = explain_strategy(strategy, st.session_state.market_data,prob)  # Pass market_data to explain_strategy
-
-        # Only include market data if it hasn't been shown before
-        if len(st.session_state.messages) <= 2:  # First real interaction
-            market_info = f"""Current market indicators (as of {st.session_state.market_data['timestamp']}):
-
-VIX (Volatility Index): {st.session_state.market_data['VIX']:.2f}
-DXY (Dollar Index): {st.session_state.market_data['DXY']:.2f}
-2Y Treasury 30day Moving Average: {st.session_state.market_data['GTITL2YR_MA']:.2f}
-10Y Treasury 30day Moving Average: {st.session_state.market_data['GTITL10YR_MA']:.2f}
-
-"""
-        else:
-            market_info = ""
-        
-        response = f"""{market_info}
-
-Market Analysis:
-Binary Anomaly Value: {label} (0 = Normal, 1 = Anomaly)
-The model indicates a {prob*100:.1f}% probability of market anomaly.
-Risk Level: {"High" if label == 1 else "Normal"}
-
-Recommended Strategy: {strategy}
-
-Detailed Analysis:
-{explanation}"""
-    # For general questions, use Groq
+    # Check rate limits
+    if st.session_state.message_count >= MESSAGE_LIMIT:
+        st.error(f"Rate limit exceeded. Please wait {TIME_WINDOW - time_diff:.0f} seconds.")
+    elif len(st.session_state.messages) >= MAX_MESSAGES_PER_SESSION:
+        st.error("Maximum session message limit reached. Please refresh the page to start a new session.")
     else:
-        completion = groq_client.chat.completions.create(
-            model="llama-3.3-70b-versatile",
-            messages=[
-                {
-                    "role": "system",
-                    "content": f"""You are a financial expert providing guidance based on current market conditions as of {st.session_state.market_data['timestamp']}:
-                    VIX: {st.session_state.market_data['VIX']:.2f}
-                    DXY: {st.session_state.market_data['DXY']:.2f}
-                    2Y Treasury MA: {st.session_state.market_data['GTITL2YR_MA']:.2f}
-                    10Y Treasury MA: {st.session_state.market_data['GTITL10YR_MA']:.2f}"""
-                },
-                *st.session_state.messages[-2:]  # Only pass the last interaction for context
-            ],
-            temperature=0.7,
-            max_tokens=1024
-        )
-        response = completion.choices[0].message.content
+        # If we get here, proceed with the message
+        st.session_state.message_count += 1
+        st.session_state.last_message_time = current_time
+        # Add user message to chat history
+        st.session_state.messages.append({"role": "user", "content": prompt})
+        with st.chat_message("user"):
+            st.write(prompt)
+    
+        # Store market data in session state if not already present
+        if 'market_data' not in st.session_state:
+            with st.spinner('Fetching market data...'):
+                st.session_state.market_data = fetch_data()
+        
+        # Check for specific market status questions first
+        if any(phrase in prompt.lower() for phrase in ["market open", "market closed", "is market open", "is market closed"]):
+            # Get current time in ET
+            et_time = pd.Timestamp.now(tz='US/Eastern')
+            is_weekend = et_time.weekday() >= 5
+            is_market_hours = 9 <= et_time.hour < 16
+            
+            if is_weekend:
+                response = "The US stock market is currently closed (weekend)."
+            elif is_market_hours:
+                response = f"The US stock market is currently open. Current time (ET): {et_time.strftime('%I:%M %p ET')}"
+            else:
+                response = f"The US stock market is currently closed. Regular trading hours are 9:30 AM - 4:00 PM ET. Current time: {et_time.strftime('%I:%M %p ET')}"
 
-    st.session_state.messages.append({"role": "assistant", "content": response})
-    with st.chat_message("assistant"):
-        st.write(response)
+        # If the query suggests needing web search
+        if any(keyword in prompt.lower() for keyword in ["news", "latest", "current events", "today",'current','now','recent']):
+            response = chat_with_openai(st.session_state.messages)
+        # For market analysis and predictions
+        elif any(keyword in prompt.lower() for keyword in ["market", "crash", "predict", "risk"]):
+            with st.spinner('Fetching market data...'):
+                market_data = fetch_data()
+            
+            label, prob = predict_anomalies(st.session_state.market_data)
+            strategy = recommend_strategy(prob)
+            explanation = explain_strategy(strategy, st.session_state.market_data,prob)  # Pass market_data to explain_strategy
+
+            # Only include market data if it hasn't been shown before
+            if len(st.session_state.messages) <= 2:  # First real interaction
+                market_info = f"""Current market indicators (as of {st.session_state.market_data['timestamp']}):
+
+    VIX (Volatility Index): {st.session_state.market_data['VIX']:.2f}
+    DXY (Dollar Index): {st.session_state.market_data['DXY']:.2f}
+    2Y Treasury 30day Moving Average: {st.session_state.market_data['GTITL2YR_MA']:.2f}
+    10Y Treasury 30day Moving Average: {st.session_state.market_data['GTITL10YR_MA']:.2f}
+
+    """
+            else:
+                market_info = ""
+            
+            response = f"""{market_info}
+
+    Market Analysis:
+    Binary Anomaly Value: {label} (0 = Normal, 1 = Anomaly)
+    The model indicates a {prob*100:.1f}% probability of market anomaly.
+    Risk Level: {"High" if label == 1 else "Normal"}
+
+    Recommended Strategy: {strategy}
+
+    Detailed Analysis:
+    {explanation}"""
+        # For general questions, use Groq
+        else:
+            completion = groq_client.chat.completions.create(
+                model="llama-3.3-70b-versatile",
+                messages=[
+                    {
+                        "role": "system",
+                        "content": f"""You are a financial expert providing guidance based on current market conditions as of {st.session_state.market_data['timestamp']}:
+                        VIX: {st.session_state.market_data['VIX']:.2f}
+                        DXY: {st.session_state.market_data['DXY']:.2f}
+                        2Y Treasury MA: {st.session_state.market_data['GTITL2YR_MA']:.2f}
+                        10Y Treasury MA: {st.session_state.market_data['GTITL10YR_MA']:.2f}"""
+                    },
+                    *st.session_state.messages[-2:]  # Only pass the last interaction for context
+                ],
+                temperature=0.7,
+                max_tokens=1024
+            )
+            response = completion.choices[0].message.content
+
+        st.session_state.messages.append({"role": "assistant", "content": response})
+        with st.chat_message("assistant"):
+            st.write(response)
 
 # Add refresh button for market data
 if st.button("Refresh Market Data"):
