@@ -41,9 +41,7 @@ MAX_MESSAGES_PER_SESSION = 10  # Maximum total messages per sess
 def fetch_data():
     # Regular tickers (VIX and DXY)
     current_tickers = {
-        'VIX': '^VIX',      # Volatility Index
-        'DXY': 'DX-Y.NYB',  # US Dollar Index
-        'USGG3M': '^IRX'  # 3-Month Treasury Yield
+        'VIX': '^VIX'      # Volatility Index
     }
     
 
@@ -91,9 +89,7 @@ def fetch_data():
 # Predict anomalies using the model
 def predict_anomalies(data):
     input_data = {
-        'VIX': data['VIX'],
-        'DXY': data['DXY'],
-        'USGG3M': data['USGG3M'],
+        'VIX': data['VIX']
     }
     df = pd.DataFrame([input_data])
     scaled_data = scaler.transform(df)
@@ -113,9 +109,7 @@ def recommend_strategy(probability):
 # Use Llama (via GROQ API) for detailed explanations
 def explain_strategy(strategy, market_data,probability):
     context = f"""Current market conditions:
-    VIX: {market_data['VIX']:.2f}
-    DXY: {market_data['DXY']:.2f}
-    13 Week US Treasury Bill: {market_data['USGG3M']:.2f}"""  
+    VIX: {market_data['VIX']:.2f}"""  
     
     completion = groq_client.chat.completions.create(
         model="llama-3.3-70b-versatile",
@@ -239,10 +233,7 @@ if prompt := st.chat_input("What would you like to know about the market?"):
             if len(st.session_state.messages) <= 2:  # First real interaction
                 market_info = f"""Current market indicators (as of {st.session_state.market_data['timestamp']}):
 
-    VIX (Volatility Index): {st.session_state.market_data['VIX']:.2f}
-    DXY (Dollar Index): {st.session_state.market_data['DXY']:.2f}
-    13 Week US Treasury Bill: {st.session_state.market_data['USGG3M']:.2f}
-    """
+    VIX (Volatility Index): {st.session_state.market_data['VIX']:.2f}"""
             else:
                 market_info = ""
             
@@ -267,9 +258,7 @@ if prompt := st.chat_input("What would you like to know about the market?"):
                     {
                         "role": "assistant",
                         "content": f"""You are a financial expert providing guidance based on current market conditions as of {st.session_state.market_data['timestamp']}:
-                        VIX: {st.session_state.market_data['VIX']:.2f}
-                        DXY: {st.session_state.market_data['DXY']:.2f}
-                        13 Week US Treasury Bill: {st.session_state.market_data['USGG3M']:.2f}"""
+                        VIX: {st.session_state.market_data['VIX']:.2f}"""
                     },
                     *st.session_state.messages[-2:]  # Only pass the last interaction for context
                 ],

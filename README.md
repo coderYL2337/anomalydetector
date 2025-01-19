@@ -4,10 +4,8 @@ A machine learning-powered chatbot that detects market anomalies and provides in
 
 ## Features
 
-- Real-time market data analysis using key indicators:
+- Real-time market data analysis using key indicator(s):
   - VIX (Volatility Index)
-  - DXY (US Dollar Index)
-  - USGG3M(^IRX 13 Week US Treasury Bill)
 - Machine learning-based anomaly detection
 - Custom investment strategy recommendations
 - Interactive chat interface
@@ -84,12 +82,10 @@ anomalydetector/
 
 ## Model Details
 
-The anomaly detection model is trained on historical market data and uses the following features:
+The anomaly detection model is trained on historical market data and uses the following feature(s):
 
 ```
 VIX (Volatility Index)
-DXY (US Dollar Index)
-USGG3M(^IRX 13 Week US Treasury Bill)
 ```
 
 ## Dependencies
