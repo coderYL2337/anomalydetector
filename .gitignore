@@ -2,6 +2,7 @@
 othermodels/
 sampledata/
 .ipynb_checkpoints/
+anomalyproject.ipynb
 
 
 # Ignore Python cache files
